@@ -6,6 +6,7 @@ import (
 	"crypto/cipher"
 )
 
+/* Commenting to test git understanding */
 
 func HashBench(b *testing.B, hash func() hash.Hash) {
 	b.SetBytes(1024 * 1024)
