@@ -18,12 +18,7 @@ type basicSig struct {
 
 // Returns a secret that depends on on a message and a point
 func hashElGamal(suite abstract.Suite, message []byte, p abstract.Point) abstract.Secret {
-<<<<<<< HEAD
-	pb, _ := p.MarshalBinary()
-	c := suite.Cipher(pb)
-=======
 	c := suite.Cipher(p.Encode())
->>>>>>> dcff8fdf4701cc4dbe688a53029cf60ae5d65c95
 	c.Message(nil, nil, message)
 	return suite.Secret().Pick(c)
 }
