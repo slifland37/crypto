@@ -108,19 +108,20 @@ func BCHelloWorldHelper(t *testing.T,
 	bc := newCipher(nil)
 	keysize := bc.KeySize()
 
-	nciphers := make([]abstract.Cipher, n)
 	nkeys := make([][]byte, n)
 	ncrypts := make([][]byte, n)
 
-	for i := range nciphers {
+	for i := range nkeys {
 		nkeys[i] = make([]byte, keysize)
 		rand.Read(nkeys[i])
 		bc = newCipher(nkeys[i])
 		ncrypts[i] = make([]byte, cryptsize)
-		bc.Message(ncrypts[i], text, nil)
+
+		bc.Message(ncrypts[i], text, ncrypts[i])
 
 		bc = newCipher(nkeys[i])
-		bc.Message(decrypted, ncrypts[i], nil)
+		decrypted := make([]byte, len(text))
+		bc.Message(decrypted, ncrypts[i], ncrypts[i])
 		if !bytes.Equal(text, decrypted) {
 			t.Log("Encryption / Decryption failed", i)
 			t.FailNow()
@@ -159,13 +160,12 @@ func AuthenticateAndEncrypt(t *testing.T,
 	hashsize := bc.HashSize()
 	mac := make([]byte, hashsize)
 
-	nciphers := make([]abstract.Cipher, n)
 	ncrypts := make([][]byte, n)
 	nkeys := make([][]byte, n)
 	nmacs := make([][]byte, n)
 
 	// Encrypt / decrypt / mac test
-	for i := range nciphers {
+	for i := range nkeys {
 		nkeys[i] = make([]byte, keysize)
 		rand.Read(nkeys[i])
 		bc = newCipher(nkeys[i])
@@ -181,8 +181,7 @@ func AuthenticateAndEncrypt(t *testing.T,
 			t.FailNow()
 		}
 
-		mac = make([]byte, hashsize)
-		bc.Message(nmacs[i], mac, nil)
+		bc.Message(mac, nmacs[i], nil)
 		if subtle.ConstantTimeAllEq(mac, 0) != 1 {
 			t.Log("MAC Check failed")
 			t.FailNow()
@@ -197,9 +196,8 @@ func AuthenticateAndEncrypt(t *testing.T,
 			}
 			bc = newCipher(nkeys[i])
 			bc.Message(decrypted, ncrypts[j], ncrypts[j])
-			mac = make([]byte, hashsize)
-			bc.Message(nmacs[j], mac, nil)
-			if subtle.ConstantTimeAllEq(mac, 0) != 1 {
+			bc.Message(mac, nmacs[j], nil)
+			if subtle.ConstantTimeAllEq(mac, 0) == 1 {
 				t.Log("MAC Check passed")
 				t.FailNow()
 			}
@@ -231,9 +229,8 @@ func AuthenticateAndEncrypt(t *testing.T,
 		deltacopy[0] ^= 255
 		bc = newCipher(nkeys[i])
 		bc.Message(decrypted, deltacopy, deltacopy)
-		mac = make([]byte, hashsize)
-		bc.Message(nmacs[i], mac, nil)
-		if subtle.ConstantTimeAllEq(mac, 0) != 1 {
+		bc.Message(mac, nmacs[i], nil)
+		if subtle.ConstantTimeAllEq(mac, 0) == 1 {
 			t.Log("MAC Check passed")
 			t.FailNow()
 		}
@@ -242,9 +239,8 @@ func AuthenticateAndEncrypt(t *testing.T,
 		deltacopy[len(deltacopy)/2-1] ^= 255
 		bc = newCipher(nkeys[i])
 		bc.Message(decrypted, deltacopy, deltacopy)
-		mac = make([]byte, hashsize)
-		bc.Message(nmacs[i], mac, nil)
-		if subtle.ConstantTimeAllEq(mac, 0) != 1 {
+		bc.Message(mac, nmacs[i], nil)
+		if subtle.ConstantTimeAllEq(mac, 0) == 1 {
 			t.Log("MAC Check passed")
 			t.FailNow()
 		}
@@ -253,9 +249,8 @@ func AuthenticateAndEncrypt(t *testing.T,
 		deltacopy[len(deltacopy)-1] ^= 255
 		bc = newCipher(nkeys[i])
 		bc.Message(decrypted, deltacopy, deltacopy)
-		mac = make([]byte, hashsize)
-		bc.Message(nmacs[i], mac, nil)
-		if subtle.ConstantTimeAllEq(mac, 0) != 1 {
+		bc.Message(mac, nmacs[i], nil)
+		if subtle.ConstantTimeAllEq(mac, 0) == 1 {
 			t.Log("MAC Check passed")
 			t.FailNow()
 		}
@@ -265,9 +260,8 @@ func AuthenticateAndEncrypt(t *testing.T,
 		deltamac[0] ^= 255
 		bc = newCipher(nkeys[i])
 		bc.Message(decrypted, ncrypts[i], ncrypts[i])
-		mac = make([]byte, hashsize)
-		bc.Message(deltamac, mac, nil)
-		if subtle.ConstantTimeAllEq(mac, 0) != 1 {
+		bc.Message(mac, deltamac, nil)
+		if subtle.ConstantTimeAllEq(mac, 0) == 1 {
 			t.Log("MAC Check passed")
 			t.FailNow()
 		}
@@ -279,7 +273,8 @@ func AuthenticateAndEncrypt(t *testing.T,
 func BCAuthenticatedEncryptionHelper(t *testing.T,
 	newCipher func([]byte, ...interface{}) abstract.Cipher,
 	n int, bitdiff float64) {
-	AuthenticateAndEncrypt(t, newCipher, n, bitdiff, []byte{})
+
+	//	AuthenticateAndEncrypt(t, newCipher, n, bitdiff, []byte{})
 	AuthenticateAndEncrypt(t, newCipher, n, bitdiff, []byte{'a'})
 	AuthenticateAndEncrypt(t, newCipher, n, bitdiff, []byte("Hello, World"))
 
