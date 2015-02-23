@@ -268,6 +268,86 @@ func AuthenticateAndEncrypt(t *testing.T,
 	}
 }
 
+// Check the uniformity of bytes generated using cipher as a
+// Pseudorandom number generator
+// If the occurrence of any possible byte value is more than +-
+// deviation away from n/256 for sufficiently large n, the test
+// fails
+// deviation is specified as a percentage relative to n/256, the 
+// expected number of occurrences of each byte value
+// ie. deviation = .05 allows any occurrence value to be 5% more 
+// or less than n/256
+func CheckByteDistribution(t *testing.T,
+	newCipher func([]byte, ...interface{}) abstract.Cipher,
+	n int, deviation float64) {
+	
+	bc := newCipher(nil)
+	keysize := bc.KeySize()
+	hashsize := bc.HashSize()
+	mac := make([]byte, hashsize)
+
+	occurrences := make([]int, 256)
+	randomBits := make([]byte, n)
+	cipher.Read(randomBits);
+	
+	for i := range randomBits {
+		byteval := randomBits[i]
+		occurrences[byteval] += 1
+	}
+	
+	occurrenceMin := float64(n)/256.0 - deviation
+	occurrenceMax := float64(n)/256.0 + deviation
+
+	for i := range occurrences {
+		if float64(occurrences[i]) > occurrenceMax || float64(occurrences[i]) < occurrenceMin {
+			t.Log("Pseudorandom byte distribution not sufficiently uniform")
+			t.FailNow()
+		}
+	}
+		
+}
+
+func CheckPartialInvariants(t *testing.T,
+	newCipher func([]byte, ...interface{}) abstract.Cipher,
+	text []byte, nSlices int) {
+
+	bc := newCipher(nil)
+	keysize := bc.KeySize()
+	hashsize := bc.HashSize()
+	sliceSize := len(text)/nSlices
+	keySliceSize := keysize/nSlices
+
+	cipherWhole := make([]byte, len(text))
+	cipherParts := make([]byte, len(text))
+	macWhole := make([]byte, hashsize)
+	macParts := make([]byte, hashsize)
+	key := make([]byte, keysize)
+	rand.Read(key)
+	
+	bc = newCipher(key)
+	bc.Message(cipherWhole, text, cipherWhole)
+	bc.Message(macWhole, nil, nil)
+
+	bc = newCipher(key)
+	for i := 0; i < nSlices-1; i++ {
+		bc.Partial(cipherWhole[(i*sliceSize):((i+1)*sliceSize)],
+			text[(i*sliceSize):((i+1)*sliceSize)],
+			key[(i*keySliceSize):((i+1)*keySliceSize)])
+	}
+	bc.Message(cipherWhole[((nSlices-1)*sliceSize):]
+		text[((nSlices-1)*sliceSize):],
+		key[((nSlices-1)*keySliceSize):])
+	bc.Message(macParts, nil, nil)
+
+	if cipherWhole != cipherParts {
+		t.Log("Ciphertext produced incrementally differs from ciphertext produced all at once")
+		t.FailNow()
+	} else if macWhole != macParts {
+		t.Log("mac produced incrementally differs from mac produced all at once")
+		t.FailNow()
+	}
+}
+
 // Iterate through various sized messages and verify
 // that encryption and authentication work
 func BCAuthenticatedEncryptionHelper(t *testing.T,
@@ -295,6 +375,9 @@ func BlockCipherTest(t *testing.T,
 	newCipher func([]byte, ...interface{}) abstract.Cipher) {
 	n := 5
 	bitdiff := .35
+	nBytes := 2^20
+	byteUniformityDeviation := 0.05
 	BCHelloWorldHelper(t, newCipher, n, bitdiff)
 	BCAuthenticatedEncryptionHelper(t, newCipher, n, bitdiff)
+	CheckByteDistribution(t, newCipher, nBytes, byteUniformityDeviation)
 }
